@@ -1,6 +1,6 @@
 import argparse
 DATA_PATH = "data/Math_23K.json"
-MODEL_PATH="trained_model/gtk_{}.pkl"
+MODEL_PATH="trained_model/gtk.pkl"
 PAD_TOKEN = 0
 NEVER_SPLIT_TAG = []
 parser = argparse.ArgumentParser(
@@ -58,5 +58,6 @@ parser.add_argument("--pooling",
 parser.add_argument("--vocab_size")
 parser.add_argument("--input_size")
 parser.add_argument("--op_nums")
+parser.add_argument("--resume",type=bool,default=False,help="start train from checkpoint or a new model.")
 parser.add_argument("--weight_decay", type=float, default=1e-5)
 ARGS = parser.parse_args()

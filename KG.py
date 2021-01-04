@@ -300,8 +300,8 @@ class KnowledgeGraph(object):
                         visible_matrix[id, visible_abs_idx] = 1
 
             src_length = len(know_sent)
-            if (src_length > 128):
-                print(1)
+            # if (src_length > 128):
+            #     print(1)
             if len(know_sent) < max_length:
                 pad_num = max_length - src_length
                 know_sent += [config.PAD_TOKEN] * pad_num

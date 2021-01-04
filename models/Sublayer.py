@@ -154,6 +154,7 @@ class TreeAttn(nn.Module):
         attn_energies = attn_energies.view(max_len, this_batch_size).transpose(
             0, 1)  # B x S
         if seq_mask is not None:
+            seq_mask=seq_mask.bool()
             attn_energies = attn_energies.masked_fill_(seq_mask, -1e12)
         attn_energies = nn.functional.softmax(attn_energies, dim=1)  # B x S
 
@@ -181,5 +182,6 @@ class Score(nn.Module):
         score = score.squeeze(1)
         score = score.view(this_batch_size, -1)  # B x O
         if num_mask is not None:
+            num_mask=num_mask.bool()
             score = score.masked_fill_(num_mask, -1e12)
         return score

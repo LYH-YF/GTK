@@ -24,9 +24,10 @@ class GTK_Model(nn.Module):
 
     def forward(self, src, mask,num_pos,num_mask,unk,num_start,\
                 pos=None, vm=None,target_length=None,target=None,nums_stack_batch=None,USE_CUDA=False):
-        if src.size(1) > 128:
-            print(1)
-            return None
+        # if src.size(1) > 128:
+        #     print(1)
+        #     return None
+        device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
         emb = self.embedding(src, mask, pos)
         encoder_outputs = self.encoder(
             emb, mask, vm)  #[batch_size x seq_length x hidden_size]
@@ -37,7 +38,8 @@ class GTK_Model(nn.Module):
         padding_hidden = torch.FloatTensor(
             [0.0 for _ in range(self.predict.hidden_size)]).unsqueeze(0)
         if target is not None:
-            target = torch.LongTensor(target).transpose(0, 1)
+            #target = torch.LongTensor(target).transpose(0, 1)
+            target=target.transpose(0,1)
             all_node_outputs=self.generate_nodes(encoder_outputs,problem_output,batch_size,padding_hidden,\
                                                     num_pos,target_length,mask,num_mask,\
                                                     target,nums_stack_batch,unk,num_start,USE_CUDA)
@@ -121,6 +123,7 @@ class GTK_Model(nn.Module):
     def generate_nodes_2(self,encoder_outputs,problem_output,batch_size,padding_hidden,seq_mask,num_mask,num_pos,\
                         num_start,USE_CUDA,beam_size=5,max_length=MAX_OUTPUT_LENGTH):
         # Prepare input and output variables
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]
 
         num_size = len(num_pos[0])
@@ -168,7 +171,7 @@ class GTK_Model(nn.Module):
                     node = current_node_stack[0].pop()
 
                     if out_token < num_start:
-                        generate_input = torch.LongTensor([out_token])
+                        generate_input = torch.LongTensor([out_token]).to(device)
                         if USE_CUDA:
                             generate_input = generate_input.cuda()
                         left_child, right_child, node_label = self.generate(
@@ -316,7 +319,7 @@ class Prediction(nn.Module):
     def forward(self, node_stacks, left_childs, encoder_outputs, num_pades,
                 padding_hidden, seq_mask, mask_nums):
         current_embeddings = []
-
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         for st in node_stacks:
             if len(st) == 0:
                 current_embeddings.append(padding_hidden)
@@ -326,12 +329,14 @@ class Prediction(nn.Module):
 
         current_node_temp = []
         for l, c in zip(left_childs, current_embeddings):
+            c=c.to(device)
             if l is None:
                 c = self.dropout(c)
                 g = torch.tanh(self.concat_l(c))
                 t = torch.sigmoid(self.concat_lg(c))
                 current_node_temp.append(g * t)
             else:
+                l=l.to(device)
                 ld = self.dropout(l)
                 c = self.dropout(c)
                 g = torch.tanh(self.concat_r(torch.cat((ld, c), 1)))
@@ -341,7 +346,7 @@ class Prediction(nn.Module):
         current_node = torch.stack(current_node_temp)
 
         current_embeddings = self.dropout(current_node)
-
+        seq_mask=seq_mask.bool()
         current_attn = self.attn(current_embeddings.transpose(0, 1),
                                  encoder_outputs, seq_mask)
         current_context = current_attn.bmm(encoder_outputs.transpose(
