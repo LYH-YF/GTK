@@ -296,7 +296,7 @@ def from_infix_to_prefix(expression):
 
 def process_math23k():
     json_datas = load_raw_data("data/Math_23K.json")
-    json_datas = json_datas[:1000]
+    #json_datas = json_datas[:1000]
 
     #pairs, temp_g, copy_nums=transfer_num(json_datas)
     #json_datas=pair2dict(pairs)

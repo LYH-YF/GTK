@@ -8,6 +8,7 @@ from models.Model import *
 import config
 from crossentropyloss import masked_cross_entropy
 from eval import compute_prefix_tree_result
+from tools import time_since
 # cuda
 CUDA_USE = True if torch.cuda.is_available() else False
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -111,7 +112,7 @@ for epo in range(start_epoch,args.epochs_num):
         best_equ_acc=equation_ac
         print("saved model at epoch {}".format(epo+1))
     print("---------------------------------------------")
-    print("epoch running time{} test running time{}".format((time.time()-epoch_start_time),(time.time-test_time)))
+    print("epoch running time{} test running time{}".format(time_since(time.time()-epoch_start_time),time_since(time.time()-test_time)))
     print(
         "[epoch %2d|%2d] avr loss[%2.8f] test equ acc[%2.3f] test ans acc[%2.3f]"
         % (epo, args.epochs_num, loss_total / batch_nums,

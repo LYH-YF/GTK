@@ -29,3 +29,11 @@ def load_json_data(path):  #load data from a json file
     f = open(path, mode="r", encoding="utf-8")
     json_data = json.load(f)
     return json_data
+
+
+def time_since(s):  # compute time
+    m = math.floor(s / 60)
+    s -= m * 60
+    h = math.floor(m / 60)
+    m -= h * 60
+    return '%dh %dm %ds' % (h, m, s)
