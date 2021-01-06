@@ -1,4 +1,5 @@
 import json
+import math
 
 
 def load_raw_data(filename):  # load the json data to list(dict()) for MATH 23K
