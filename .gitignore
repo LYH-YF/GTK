@@ -3,3 +3,4 @@ data/kg_filtered.json
 data/vocab.txt
 BuildKG.py
 __pycache__
+trained_model/gtk.pkl

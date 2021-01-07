@@ -1,6 +1,6 @@
 import argparse
 DATA_PATH = "data/Math_23K.json"
-MODEL_PATH="trained_model/gtk.pkl"
+MODEL_PATH="trained_model/gtk.pth"
 PAD_TOKEN = 0
 NEVER_SPLIT_TAG = []
 parser = argparse.ArgumentParser(
