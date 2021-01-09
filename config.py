@@ -1,6 +1,5 @@
 import argparse
 DATA_PATH = "data/Math_23K.json"
-MODEL_PATH="trained_model/gtk.pth"
 PAD_TOKEN = 0
 NEVER_SPLIT_TAG = []
 RANDOM_SEED=0
@@ -63,3 +62,4 @@ parser.add_argument("--resume",type=bool,default=False,help="start train from ch
 parser.add_argument("--weight_decay", type=float, default=1e-5)
 parser.add_argument("--use_kg",type=bool,default=False)
 ARGS = parser.parse_args()
+MODEL_PATH="trained_model/gtk_{}.pth".format(ARGS.use_kg)

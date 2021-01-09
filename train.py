@@ -10,6 +10,7 @@ from crossentropyloss import masked_cross_entropy
 from eval import compute_prefix_tree_result
 from tools import time_since
 
+
 class Trainer(object):
     '''
     structure of Trainer:
@@ -107,14 +108,11 @@ class Trainer(object):
         # load parameter of optimizer
         self.embedding_optimizer.load_state_dict(
             check_pnt["embedding_optimizer"])
-        self.encoder_optimizer.load_state_dict(
-            check_pnt["encoder_optimizer"])
-        self.predict_optimizer.load_state_dict(
-            check_pnt["predict_optimizer"])
+        self.encoder_optimizer.load_state_dict(check_pnt["encoder_optimizer"])
+        self.predict_optimizer.load_state_dict(check_pnt["predict_optimizer"])
         self.generate_optimizer.load_state_dict(
             check_pnt["generate_optimizer"])
-        self.merge_optimizer.load_state_dict(
-            check_pnt["merge_optimizer"])
+        self.merge_optimizer.load_state_dict(check_pnt["merge_optimizer"])
         #load parameter of scheduler
         self.embedding_scheduler.load_state_dict(
             check_pnt["embedding_scheduler"])
@@ -187,6 +185,7 @@ class Trainer(object):
         self.predict_scheduler.step()
         self.generate_scheduler.step()
         self.merge_scheduler.step()
+
     def optimizer_step(self):
         self.embedding_optimizer.step()
         self.encoder_optimizer.step()
@@ -236,9 +235,8 @@ class Trainer(object):
         loss.backward()
         self.optimizer_step()
         batch_loss = loss.item()
-        print("[epoch %3d]|[step %4d|%4d] loss[%2.8f] lr:[%1.8f]" %
-              (self.epoch_i, self.batch_idx, self.batch_nums, batch_loss,
-               self.encoder_scheduler.get_lr()[0]))
+        print("[epoch %3d]|[step %4d|%4d] loss[%2.8f]" %
+              (self.epoch_i, self.batch_idx, self.batch_nums, batch_loss))
         return batch_loss
 
     def eval_batch(self, batch):
@@ -256,6 +254,7 @@ class Trainer(object):
     def train_epoch(self):
         self.batch_nums = int(
             self.data_set.train_num / self.args.batch_size) + 1
+        print("start training...")
         for epo in range(self.start_epoch, self.args.epochs_num):
             self.scheduler_step()
             self.epoch_i = epo + 1
@@ -290,12 +289,14 @@ class Trainer(object):
                 time_since(time.time() - epoch_start_time),
                 time_since(time.time() - test_time)))
             print(
-                "[epoch %2d|%2d] avr loss[%2.8f] test equ acc[%2.3f] test ans acc[%2.3f]"
-                % (self.epoch_i, self.args.epochs_num,
-                   loss_total / self.batch_nums, equation_ac / eval_total,
-                   value_ac / eval_total))
+                "[epoch %2d|%2d] avr loss[%2.8f] | lr[%1.6f] test equ acc[%2.3f] test ans acc[%2.3f]"
+                % (self.epoch_i, self.args.epochs_num, loss_total /
+                   self.batch_nums, self.encoder_scheduler.get_lr()[0],
+                   equation_ac / eval_total, value_ac / eval_total))
             print("---------------------------------------------")
-    
+        print("training finished.")
+        print("best value acc:{} equation acc:{}".format(
+            self.best_value_acc, self.best_equ_acc))
     def generate_nodes(self,encoder_outputs,problem_output,batch_size,padding_hidden,num_pos,target_length,seq_mask,num_mask,\
                         target,nums_stack_batch,unk,num_start,USE_CUDA):
         # Prepare input and output variables
@@ -360,7 +361,7 @@ class Trainer(object):
                 else:
                     left_childs.append(None)
         return all_node_outputs
-    
+
     def generate_nodes_2(self,encoder_outputs,problem_output,batch_size,padding_hidden,seq_mask,num_mask,num_pos,\
                         num_start,USE_CUDA,beam_size=5,max_length=MAX_OUTPUT_LENGTH):
         # Prepare input and output variables
@@ -459,11 +460,11 @@ class Trainer(object):
             if flag:
                 break
         return beams[0].out
+
+
 if __name__ == "__main__":
     # cuda
     CUDA_USE = True if torch.cuda.is_available() else False
     print("[CUDA USE]:{}".format(CUDA_USE))
-    trainer=Trainer()
-    print("start training...")
+    trainer = Trainer()
     trainer.train_epoch()
-    print("training finished.")
