@@ -137,11 +137,16 @@ class KnowledgeGraph(object):
     """
     spo_files - list of Path of *.spo files, or default kg name. e.g., ['HowNet']
     """
-    def __init__(self, kg_path, predicate=False):
+    def __init__(self, kg_path,use_kg=True, predicate=False):
         self.predicate = predicate
+        self.use_kg=use_kg
         #self.spo_file_paths = [config.KGS.get(f, f) for f in spo_files]
         self.kg_file_path = kg_path
-        self.lookup_table, self.segment_vocab = self._create_lookup_table()
+        if use_kg is not True:
+            self.lookup_table={}, 
+            self.segment_vocab=[]
+        else:
+            self.lookup_table, self.segment_vocab = self._create_lookup_table()
         #self.segment_vocab = list(self.lookup_table.keys()) + config.NEVER_SPLIT_TAG
         #self.tokenizer = pkuseg.pkuseg(model_name="default", postag=False, user_dict=self.segment_vocab)
         self.special_tags = set(config.NEVER_SPLIT_TAG)
@@ -221,7 +226,10 @@ class KnowledgeGraph(object):
             for token in split_sent:
                 sent_len += 1
                 #entities = list(self.lookup_table.get(token, []))[:max_entities]
-                entities = self.lookup_table.get(token, [])[:max_entities]
+                if self.use_kg:
+                    entities = self.lookup_table.get(token, [])[:max_entities]
+                else:
+                    entities=[]
                 sent_tree.append((token, entities))
 
                 if token in self.special_tags:
@@ -329,12 +337,3 @@ class KnowledgeGraph(object):
 
         #return know_sent_batch, position_batch, visible_matrix_batch,sent_len_batch,num_pos_batch,num_list_batch,ans_batch,id_batch,equation_batch,temp_g,copy_nums,seg_batch
         return know_sent_batch, position_batch, visible_matrix_batch, sent_len_batch, seg_batch
-
-
-if __name__ == "__main__":
-    x = jieba.cut_for_search("表达式模型")
-    for a in x:
-        print(a)
-    x = jieba.cut("表达式模型")
-    for a in x:
-        print(a)

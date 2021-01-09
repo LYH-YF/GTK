@@ -4,6 +4,7 @@ from copy import deepcopy
 import torch
 from tools import load_raw_data
 from KG import KnowledgeGraph
+from config import ARGS
 
 
 def transfer_num_2(data):  # transfer num into "NUM"
@@ -179,7 +180,8 @@ def process_math23k():
 
     #pairs, temp_g, copy_nums=transfer_num(json_datas)
     #json_datas=pair2dict(pairs)
-    kg = KnowledgeGraph("data/kg_cleared.json")
+    print("[USE KG]:{}".format(ARGS.use_kg))
+    kg = KnowledgeGraph("data/kg_cleared.json",ARGS.use_kg)
     processed_datas = []
     # print("add knowledge/transfer nums...")
     # know_sent_batch, position_batch, visible_matrix_batch,\
@@ -206,8 +208,7 @@ def process_math23k():
             "ans": data["ans"]
         }
         processed_datas.append(processed_data)
-        print("\radd knowledge to sentence %5d" % i, end="")
-    print()
+    print("add knowledge to sentence...")
     processed_datas, temp_g, copy_nums = transfer_num_2(processed_datas)
     processed_datas = prefix(processed_datas)
     return processed_datas, kg, temp_g, copy_nums

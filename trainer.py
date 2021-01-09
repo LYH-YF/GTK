@@ -71,9 +71,10 @@ for epo in range(start_epoch, args.epochs_num):
                                     length=batch["equ len"])
         loss.backward()
         optimizer.step()
+        #scheduler.step()
         batch_loss = loss.item()
-        print("[epoch %3d]|[step %4d|%4d] loss[%2.8f]" %
-              ((epo + 1), batch_idx, batch_nums, batch_loss))
+        print("[epoch %3d]|[step %4d|%4d] loss[%2.8f] lr:[%2.4f]" %
+              ((epo + 1), batch_idx, batch_nums, batch_loss,scheduler.get_lr()))
         loss_total += batch_loss
         batch_idx += 1
     value_ac = 0
