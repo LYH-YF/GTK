@@ -78,3 +78,42 @@ def copy_list(l):
         else:
             r.append(i)
     return r
+
+
+def beam_sort(beams):
+    '''
+    beams:list of TreeBeam object
+    '''
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    beam_num = len(beams)
+    out_num = len(beams[0].out)
+    scores = []
+    for beam in beams:
+        scores.append(beam.score)
+    scores = torch.stack(scores).to(device)
+    topv, topi = scores.topk(beam_num, dim=0)
+    #topi=topi.transpose(0,1)
+    #topv=topv.transpose(0,1)
+    sorted_beams = []
+    for beam_idx, batch in enumerate(topi.split(1)):
+        # beam.embedding_stack
+        # beam.left_childs
+        # beam.node_stack
+        # beam.out
+        # beam.score
+        embedding_stack = []
+        left_childs = []
+        node_stack = []
+        out = [[] for _ in range(out_num)]
+        score = []
+        for b, sort_idx in enumerate(batch.split(1, dim=1)):
+            embedding_stack.append(beams[sort_idx].embedding_stack[b])
+            left_childs.append(beams[sort_idx].left_childs[b])
+            node_stack.append(beams[sort_idx].node_stack[b])
+            for out_idx in range(out_num):
+                out[out_idx].append(beams[sort_idx].out[out_idx][b])
+            score.append(beams[sort_idx].score[b])
+        score = torch.stack(score).to(device)
+        sorted_beams.append(
+            TreeBeam(score, node_stack, embedding_stack, left_childs, out))
+    return sorted_beams
