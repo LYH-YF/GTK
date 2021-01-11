@@ -19,7 +19,7 @@ parser.add_argument("--seed", type=int, default=0, help="Random seed.")
 # Optimizer options.
 parser.add_argument("--learning_rate",
                     type=float,
-                    default=1e-3,
+                    default=2e-5,
                     help="Learning rate.")
 parser.add_argument("--warmup", type=float, default=0.1, help="Warm up value.")
 # Model options.

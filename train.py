@@ -266,11 +266,11 @@ class Trainer(object):
             epoch_start_time = time.time()
             loss_total = 0.
             self.eval2train()
-            # for batch_idx, batch in enumerate(
-            #         self.data_set.load_data(self.args.batch_size, "train")):
-            #     self.batch_idx = batch_idx + 1
-            #     batch_loss = self.train_batch(batch)
-            #     loss_total += batch_loss
+            for batch_idx, batch in enumerate(
+                    self.data_set.load_data(self.args.batch_size, "train")):
+                self.batch_idx = batch_idx + 1
+                batch_loss = self.train_batch(batch)
+                loss_total += batch_loss
             value_ac = 0
             equation_ac = 0
             eval_total = 0
@@ -465,7 +465,7 @@ class Trainer(object):
                     x1=torch.tensor(b.score)
                     x2=tv.squeeze()
                     current_beams.append(
-                        TreeBeam(torch.tensor(b.score) + tv.squeeze(), current_node_stack,
+                        TreeBeam(torch.tensor(b.score).to(self.device) + tv.squeeze(), current_node_stack,
                                 current_embeddings_stacks,
                                 current_left_childs, current_out))
             #beams = sorted(current_beams, key=lambda x: x.score, reverse=True)
@@ -473,8 +473,12 @@ class Trainer(object):
             beams = beams[:beam_size]
             flag = True
             for b in beams:
-                if len(b.node_stack[0]) != 0:
-                    flag = False
+                for idx in range(batch_size):
+                    if len(b.node_stack[idx]) != 0:
+                        flag = False
+                        break
+                if flag==False:
+                    break
             if flag:
                 break
         all_out_node=beams[0].out
