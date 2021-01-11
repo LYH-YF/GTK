@@ -246,10 +246,15 @@ class Trainer(object):
 
         test_out=self.run_train(batch["question"],batch["ques mask"],batch["num pos"],batch["num mask"],\
                             unk,num_start,batch["position"],batch["visible matrix"],CUDA_USE)
-        val_ac, equ_ac, _, _ = compute_prefix_tree_result(
-            test_out, batch["equation"].tolist()[0], self.data_set.vocab,
-            batch["num list"][0], batch["num stack"][0])
-        return val_ac, equ_ac
+        batch_val_acc=[]
+        batch_equ_acc=[]
+        for i in range(len(test_out)):
+            val_ac, equ_ac, _, _ = compute_prefix_tree_result(
+                test_out[i], batch["equation"].tolist()[i], self.data_set.vocab,
+                batch["num list"][i], batch["num stack"][i])
+            batch_val_acc.append(val_ac)
+            batch_equ_acc.append(equ_ac)
+        return batch_val_acc,batch_equ_acc
 
     def train_epoch(self):
         self.batch_nums = int(
@@ -271,13 +276,11 @@ class Trainer(object):
             eval_total = 0
             self.train2eval()
             test_time = time.time()
-            for batch in self.data_set.load_data(1, "test"):
-                val_ac, equ_ac = self.eval_batch(batch)
-                if val_ac:
-                    value_ac += 1
-                if equ_ac:
-                    equation_ac += 1
-                eval_total += 1
+            for batch in self.data_set.load_data(self.args.batch_size, "test"):
+                batch_val_ac, batch_equ_ac = self.eval_batch(batch)
+                value_ac += batch_val_ac.count(True)
+                equation_ac += batch_equ_ac.count(True)
+                eval_total += len(batch_val_ac)
             if value_ac > self.best_value_acc:
                 self.save_model(config.MODEL_PATH)
                 self.best_value_acc = value_ac
@@ -366,100 +369,73 @@ class Trainer(object):
                         num_start,USE_CUDA,beam_size=5,max_length=MAX_OUTPUT_LENGTH):
         # Prepare input and output variables
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Prepare input and output variables
         node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]
 
-        num_size = len(num_pos[0])
+        #max_target_length = max(target_length)
+
+        all_node_outputs = []
+        # all_leafs = []
+        copy_num_len = [len(_) for _ in num_pos]
+        num_size = max(copy_num_len)
         all_nums_encoder_outputs = get_all_number_encoder_outputs(
             encoder_outputs, num_pos, batch_size, num_size,
             self.encoder.hidden_size, USE_CUDA)
-
-        embeddings_stacks = [[] for _ in range(batch_size)]
         left_childs = [None for _ in range(batch_size)]
-        beams = [
-            TreeBeam(0.0, node_stacks, embeddings_stacks, left_childs, [])
-        ]
+        embeddings_stacks = [[] for _ in range(batch_size)]
         for t in range(max_length):
-            current_beams = []
-            while len(beams) > 0:
-                b = beams.pop()
-                if len(b.node_stack[0]) == 0:
-                    current_beams.append(b)
+            num_score, op, current_embeddings, current_context, current_nums_embeddings = self.predict(
+                node_stacks, left_childs, encoder_outputs,
+                all_nums_encoder_outputs, padding_hidden, seq_mask, num_mask)
+            # all_leafs.append(p_leaf)
+            out_score = nn.functional.log_softmax(torch.cat(
+                (op, num_score), dim=1),dim=1)
+            topv, topi = out_score.topk(1)
+            
+            topi=topi.squeeze()
+            is_op=topi<num_start
+            gen_input=topi*(is_op.float())
+
+            out_token = topi.tolist()
+            all_node_outputs.append(out_token)
+
+            generate_input = torch.LongTensor(gen_input
+                                                    ).to(self.device)
+            if USE_CUDA:
+                generate_input = generate_input.cuda()
+            left_child, right_child, node_label = self.generate(
+                current_embeddings, generate_input,
+                current_context)
+            
+            for idx,l_c,r_c,o_t,node_stack,o in zip(range(batch_size),left_child.split(1),right_child.split(1),out_token,node_stacks,embeddings_stacks):
+                if len(node_stack) != 0:
+                    node = node_stack.pop()
+                else:
+                    left_childs.append(None)
                     continue
-                # left_childs = torch.stack(b.left_childs)
-                left_childs = b.left_childs
 
-                num_score, op, current_embeddings, current_context, current_nums_embeddings = self.predict(
-                    b.node_stack, left_childs, encoder_outputs,
-                    all_nums_encoder_outputs, padding_hidden, seq_mask,
-                    num_mask)
-
-                out_score = nn.functional.log_softmax(torch.cat(
-                    (op, num_score), dim=1),
-                                                      dim=1)
-
-                # out_score = p_leaf * out_score
-
-                topv, topi = out_score.topk(beam_size)
-
-                for tv, ti in zip(topv.split(1, dim=1), topi.split(1, dim=1)):
-                    current_node_stack = copy_list(b.node_stack)
-                    current_left_childs = []
-                    current_embeddings_stacks = copy_list(b.embedding_stack)
-                    current_out = copy.deepcopy(b.out)
-
-                    out_token = int(ti)
-                    current_out.append(out_token)
-
-                    node = current_node_stack[0].pop()
-
-                    if out_token < num_start:
-                        generate_input = torch.LongTensor([out_token
-                                                           ]).to(device)
-                        if USE_CUDA:
-                            generate_input = generate_input.cuda()
-                        left_child, right_child, node_label = self.generate(
-                            current_embeddings, generate_input,
-                            current_context)
-
-                        current_node_stack[0].append(TreeNode(right_child))
-                        current_node_stack[0].append(
-                            TreeNode(left_child, left_flag=True))
-
-                        current_embeddings_stacks[0].append(
-                            TreeEmbedding(node_label[0].unsqueeze(0), False))
-                    else:
-                        current_num = current_nums_embeddings[
-                            0, out_token - num_start].unsqueeze(0)
-
-                        while len(
-                                current_embeddings_stacks[0]
-                        ) > 0 and current_embeddings_stacks[0][-1].terminal:
-                            sub_stree = current_embeddings_stacks[0].pop()
-                            op = current_embeddings_stacks[0].pop()
-                            current_num = self.merge(op.embedding,
-                                                     sub_stree.embedding,
-                                                     current_num)
-                        current_embeddings_stacks[0].append(
-                            TreeEmbedding(current_num, True))
-                    if len(current_embeddings_stacks[0]
-                           ) > 0 and current_embeddings_stacks[0][-1].terminal:
-                        current_left_childs.append(
-                            current_embeddings_stacks[0][-1].embedding)
-                    else:
-                        current_left_childs.append(None)
-                    current_beams.append(
-                        TreeBeam(b.score + float(tv), current_node_stack,
-                                 current_embeddings_stacks,
-                                 current_left_childs, current_out))
-            beams = sorted(current_beams, key=lambda x: x.score, reverse=True)
-            beams = beams[:beam_size]
-            flag = True
-            for b in beams:
-                if len(b.node_stack[0]) != 0:
-                    flag = False
-            if flag:
-                break
-        return beams[0].out
+                if o_t < num_start:
+                    
+                    node_stack.append(TreeNode(r_c))
+                    node_stack.append(TreeNode(l_c, left_flag=True))
+                    o.append(TreeEmbedding(node_label[idx].unsqueeze(0),
+                                        False))
+                else:
+                    current_num = current_nums_embeddings[
+                    idx, o_t - num_start].unsqueeze(0)
+                    while len(o) > 0 and o[-1].terminal:
+                        sub_stree = o.pop()
+                        op = o.pop()
+                        current_num = self.merge(op.embedding,
+                                                sub_stree.embedding,
+                                                current_num)
+                    o.append(TreeEmbedding(current_num, True))
+                if len(o) > 0 and o[-1].terminal:
+                    left_childs.append(o[-1].embedding)
+                else:
+                    left_childs.append(None)
+        all_node_outputs=torch.tensor(all_node_outputs).to(self.device).long().transpose(0,1)
+        return all_node_outputs
 
 
 if __name__ == "__main__":

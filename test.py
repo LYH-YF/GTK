@@ -18,9 +18,9 @@ class Tester(object):
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
         self.build_dataset(config.RANDOM_SEED)
-        self.load_model(self.args)
+        self.load_model(self.args,config.MODEL_PATH)
 
-    def load_model(self, args):
+    def load_model(self, args,path):
         vocab_size = self.data_set.vocab.input_vocab_len
         # model
         self.embedding = BertEmbedding(args, vocab_size).to(self.device)
@@ -28,6 +28,15 @@ class Tester(object):
         self.predict = Prediction(args).to(self.device)
         self.generate = GenerateNode(args).to(self.device)
         self.merge = Merge(args).to(self.device)
+        
+        check_pnt = torch.load(path)
+        # load parameter of model
+        self.embedding.load_state_dict(check_pnt["embedding"])
+        self.encoder.load_state_dict(check_pnt["encoder"])
+        self.predict.load_state_dict(check_pnt["predict"])
+        self.generate.load_state_dict(check_pnt["generate"])
+        self.merge.load_state_dict(check_pnt["merge"])
+        
 
     def build_dataset(self, random_seed):
         # data processing
@@ -51,13 +60,12 @@ class Tester(object):
         self.test_total = 0
         test_time = time.time()
         self.train2eval()
-        for batch in self.data_set.load_data(1, "test"):
-            val_ac, equ_ac = self.test_batch(batch)
-            if val_ac:
-                self.value_acc += 1
-            if equ_ac:
-                self.equ_acc += 1
-            self.test_total += 1
+        for batch in self.data_set.load_data(self.args.batch_size, "test"):
+            batch_val_ac, batch_equ_ac = self.test_batch(batch)
+            
+            self.value_acc += batch_val_ac.count(True)
+            self.equ_acc += batch_equ_ac.count(True)
+            self.test_total += len(batch_val_ac)
         print("test running time:{}".format(time_since(time.time() -
                                                        test_time)))
         print(
@@ -72,12 +80,23 @@ class Tester(object):
         num_start = self.data_set.vocab.num_start
         CUDA_USE = True if torch.cuda.is_available() else False
 
-        test_out=self.run_test(batch["question"],batch["ques mask"],batch["num pos"],batch["num mask"],\
-                            unk,num_start,batch["position"],batch["visible matrix"],CUDA_USE)
-        val_ac, equ_ac, _, _ = compute_prefix_tree_result(
-            test_out, batch["equation"].tolist()[0], self.data_set.vocab,
-            batch["num list"][0], batch["num stack"][0])
-        return val_ac, equ_ac
+        test_out=self.run_test(batch["question"],
+                                batch["ques mask"],
+                                batch["num pos"],
+                                batch["num mask"],
+                                num_start,
+                                batch["position"],
+                                batch["visible matrix"],
+                                CUDA_USE)
+        batch_val_acc=[]
+        batch_equ_acc=[]
+        for i in range(len(test_out)):
+            val_ac, equ_ac, _, _ = compute_prefix_tree_result(
+                test_out[i], batch["equation"].tolist()[i], self.data_set.vocab,
+                batch["num list"][i], batch["num stack"][i])
+            batch_val_acc.append(val_ac)
+            batch_equ_acc.append(equ_ac)
+        return batch_val_acc,batch_equ_acc
 
     def run_test(self,
                  src,
@@ -98,7 +117,7 @@ class Tester(object):
         padding_hidden = torch.FloatTensor(
             [0.0 for _ in range(self.predict.hidden_size)]).unsqueeze(0)
 
-        all_node_outputs=self.generate_nodes(encoder_outputs,problem_output,batch_size,padding_hidden,mask,num_mask,num_pos,\
+        all_node_outputs=self.generate_nodes_(encoder_outputs,problem_output,batch_size,padding_hidden,mask,num_mask,num_pos,\
                                                 num_start,USE_CUDA)
         return all_node_outputs
     def generate_nodes(self,encoder_outputs,problem_output,batch_size,padding_hidden,seq_mask,num_mask,num_pos,\
@@ -198,6 +217,78 @@ class Tester(object):
             if flag:
                 break
         return beams[0].out
+    def generate_nodes_(self,encoder_outputs,problem_output,batch_size,padding_hidden,seq_mask,num_mask,num_pos,\
+                        num_start,USE_CUDA,beam_size=5,max_length=MAX_OUTPUT_LENGTH):
+        # Prepare input and output variables
+        node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]
+
+        #max_target_length = max(target_length)
+
+        all_node_outputs = []
+        # all_leafs = []
+        copy_num_len = [len(_) for _ in num_pos]
+        num_size = max(copy_num_len)
+        all_nums_encoder_outputs = get_all_number_encoder_outputs(
+            encoder_outputs, num_pos, batch_size, num_size,
+            self.encoder.hidden_size, USE_CUDA)
+        left_childs = [None for _ in range(batch_size)]
+        embeddings_stacks = [[] for _ in range(batch_size)]
+        beams = [
+            TreeBeam(0.0, node_stacks, embeddings_stacks, left_childs, [])
+        ]
+        for t in range(max_length):
+            num_score, op, current_embeddings, current_context, current_nums_embeddings = self.predict(
+                node_stacks, left_childs, encoder_outputs,
+                all_nums_encoder_outputs, padding_hidden, seq_mask, num_mask)
+            # all_leafs.append(p_leaf)
+            out_score = nn.functional.log_softmax(torch.cat(
+                (op, num_score), dim=1),dim=1)
+            topv, topi = out_score.topk(1)
+            topi=topi.reshape(batch_size)
+            is_op=topi<num_start
+            gen_input=topi*is_op
+
+            out_token = topi.tolist()
+            all_node_outputs.append(out_token)
+
+            # generate_input = torch.LongTensor(gen_input
+            #                                         ).to(self.device)
+            generate_input=gen_input.long().squeeze()
+            if USE_CUDA:
+                generate_input = generate_input.cuda()
+            left_child, right_child, node_label = self.generate(
+                current_embeddings, generate_input,
+                current_context)
+            
+            for idx,l_c,r_c,o_t,node_stack,o in zip(range(batch_size),left_child.split(1),right_child.split(1),out_token,node_stacks,embeddings_stacks):
+                if len(node_stack) != 0:
+                    node = node_stack.pop()
+                else:
+                    left_childs.append(None)
+                    continue
+
+                if o_t < num_start:
+                    
+                    node_stack.append(TreeNode(r_c))
+                    node_stack.append(TreeNode(l_c, left_flag=True))
+                    o.append(TreeEmbedding(node_label[idx].unsqueeze(0),
+                                        False))
+                else:
+                    current_num = current_nums_embeddings[
+                    idx, o_t - num_start].unsqueeze(0)
+                    while len(o) > 0 and o[-1].terminal:
+                        sub_stree = o.pop()
+                        op = o.pop()
+                        current_num = self.merge(op.embedding,
+                                                sub_stree.embedding,
+                                                current_num)
+                    o.append(TreeEmbedding(current_num, True))
+                if len(o) > 0 and o[-1].terminal:
+                    left_childs.append(o[-1].embedding)
+                else:
+                    left_childs.append(None)
+        all_node_outputs=torch.tensor(all_node_outputs).to(self.device).long().transpose(0,1)
+        return all_node_outputs
 
 
 if __name__ == "__main__":
