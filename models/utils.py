@@ -78,7 +78,11 @@ def copy_list(l):
         else:
             r.append(i)
     return r
-
+def batch_copy_list(ls):
+    copy_ls=[]
+    for l in ls:
+        copy_ls.append(copy_list(l))
+    return copy_ls
 
 def beam_sort(beams):
     '''

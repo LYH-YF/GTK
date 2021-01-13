@@ -265,12 +265,12 @@ class Trainer(object):
             self.epoch_i = epo + 1
             epoch_start_time = time.time()
             loss_total = 0.
-            self.eval2train()
-            for batch_idx, batch in enumerate(
-                    self.data_set.load_data(self.args.batch_size, "train")):
-                self.batch_idx = batch_idx + 1
-                batch_loss = self.train_batch(batch)
-                loss_total += batch_loss
+            # self.eval2train()
+            # for batch_idx, batch in enumerate(
+            #         self.data_set.load_data(self.args.batch_size, "train")):
+            #     self.batch_idx = batch_idx + 1
+            #     batch_loss = self.train_batch(batch)
+            #     loss_total += batch_loss
             value_ac = 0
             equation_ac = 0
             eval_total = 0
@@ -428,7 +428,7 @@ class Trainer(object):
                     for idx in range(batch_size):
                         if current_node_stack[idx]==[]:
                             #current_beams.append(b)
-                            current_embeddings_stacks[idx].append(b.embedding_stack[idx])
+                            current_embeddings_stacks[idx]=b.embedding_stack[idx]
                             current_left_childs.append(b.left_childs[idx])
                             #current_node_stack[idx]=b
                             continue
