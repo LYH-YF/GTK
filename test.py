@@ -152,7 +152,7 @@ class Tester(object):
         padding_hidden = torch.FloatTensor(
             [0.0 for _ in range(self.predict.hidden_size)]).unsqueeze(0)
 
-        all_node_outputs=self.generate_nodes__(encoder_outputs,problem_output,batch_size,padding_hidden,mask,num_mask,num_pos,\
+        all_node_outputs=self.generate_nodes(encoder_outputs,problem_output,batch_size,padding_hidden,mask,num_mask,num_pos,\
                                                 num_start,USE_CUDA)
         return all_node_outputs
     def generate_nodes(self,encoder_outputs,problem_output,batch_size,padding_hidden,seq_mask,num_mask,num_pos,\

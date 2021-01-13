@@ -84,7 +84,7 @@ def batch_copy_list(ls):
         copy_ls.append(copy_list(l))
     return copy_ls
 
-def beam_sort(beams):
+def beam_sort(beams,beam_size=5):
     '''
     beams:list of TreeBeam object
     '''
@@ -95,7 +95,7 @@ def beam_sort(beams):
     for beam in beams:
         scores.append(beam.score)
     scores = torch.stack(scores).to(device)
-    topv, topi = scores.topk(beam_num, dim=0)
+    topv, topi = scores.topk(beam_size, dim=0)
     #topi=topi.transpose(0,1)
     #topv=topv.transpose(0,1)
     sorted_beams = []

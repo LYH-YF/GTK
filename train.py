@@ -65,7 +65,7 @@ class Trainer(object):
             weight_decay=args.weight_decay)
         self.encoder_optimizer = torch.optim.Adam(
             self.encoder.parameters(),
-            lr=args.learning_rate,
+            lr=2e-5,
             weight_decay=args.weight_decay)
         self.predict_optimizer = torch.optim.Adam(
             self.predict.parameters(),
@@ -82,7 +82,7 @@ class Trainer(object):
         self.embedding_scheduler = torch.optim.lr_scheduler.StepLR(
             self.embedding_optimizer, step_size=20, gamma=0.5)
         self.encoder_scheduler = torch.optim.lr_scheduler.StepLR(
-            self.encoder_optimizer, step_size=20, gamma=0.5)
+            self.encoder_optimizer, step_size=100, gamma=0.5)
         self.predict_scheduler = torch.optim.lr_scheduler.StepLR(
             self.predict_optimizer, step_size=20, gamma=0.5)
         self.generate_scheduler = torch.optim.lr_scheduler.StepLR(
@@ -246,15 +246,19 @@ class Trainer(object):
 
         test_out=self.run_train(batch["question"],batch["ques mask"],batch["num pos"],batch["num mask"],\
                             unk,num_start,batch["position"],batch["visible matrix"],CUDA_USE)
-        batch_val_acc=[]
-        batch_equ_acc=[]
-        for i in range(len(test_out)):
-            val_ac, equ_ac, _, _ = compute_prefix_tree_result(
-                test_out[i], batch["equation"].tolist()[i], self.data_set.vocab,
-                batch["num list"][i], batch["num stack"][i])
-            batch_val_acc.append(val_ac)
-            batch_equ_acc.append(equ_ac)
-        return batch_val_acc,batch_equ_acc
+        val_ac, equ_ac, _, _ = compute_prefix_tree_result(
+                test_out, batch["equation"].tolist(), self.data_set.vocab,
+                batch["num list"], batch["num stack"])
+        return val_ac,equ_ac
+        # batch_val_acc=[]
+        # batch_equ_acc=[]
+        # for i in range(len(test_out)):
+        #     val_ac, equ_ac, _, _ = compute_prefix_tree_result(
+        #         test_out[i].tolist(), batch["equation"].tolist()[i], self.data_set.vocab,
+        #         batch["num list"][i], batch["num stack"][i])
+        #     batch_val_acc.append(val_ac)
+        #     batch_equ_acc.append(equ_ac)
+        # return batch_val_acc,batch_equ_acc
 
     def train_epoch(self):
         self.batch_nums = int(
@@ -265,41 +269,48 @@ class Trainer(object):
             self.epoch_i = epo + 1
             epoch_start_time = time.time()
             loss_total = 0.
-            # self.eval2train()
-            # for batch_idx, batch in enumerate(
-            #         self.data_set.load_data(self.args.batch_size, "train")):
-            #     self.batch_idx = batch_idx + 1
-            #     batch_loss = self.train_batch(batch)
-            #     loss_total += batch_loss
+            self.eval2train()
+            for batch_idx, batch in enumerate(
+                    self.data_set.load_data(self.args.batch_size, "train")):
+                self.batch_idx = batch_idx + 1
+                batch_loss = self.train_batch(batch)
+                loss_total += batch_loss
+            print("epoch train time {}".format(time_since(time.time() -epoch_start_time)))
             value_ac = 0
             equation_ac = 0
             eval_total = 0
-            self.train2eval()
-            test_time = time.time()
-            for batch in self.data_set.load_data(self.args.batch_size, "test"):
-                batch_val_ac, batch_equ_ac = self.eval_batch(batch)
-                value_ac += batch_val_ac.count(True)
-                equation_ac += batch_equ_ac.count(True)
-                eval_total += len(batch_val_ac)
-            if value_ac > self.best_value_acc:
-                self.save_model(config.MODEL_PATH)
-                self.best_value_acc = value_ac
-                self.best_equ_acc = equation_ac
+            if self.epoch_i in [1,10,20,30,38,46,52,58,62,66,68,70] or self.epoch_i>70:
+                self.train2eval()
+                test_time = time.time()
+                print("eval model...")
+                for batch in self.data_set.load_data(1, "test"):
+                    batch_val_ac, batch_equ_ac = self.eval_batch(batch)
+                    if batch_val_ac:
+                        value_ac+=1
+                    if batch_equ_ac:
+                        equation_ac+=1
+                    eval_total+=1
+                    # value_ac += batch_val_ac.count(True)
+                    # equation_ac += batch_equ_ac.count(True)
+                    # eval_total += len(batch_val_ac)
+                if value_ac > self.best_value_acc:
+                    self.save_model(config.MODEL_PATH)
+                    self.best_value_acc = value_ac
+                    self.best_equ_acc = equation_ac
+                    print("---------------------------------------------")
+                    print("saved model at epoch {}".format(self.epoch_i))
                 print("---------------------------------------------")
-                print("saved model at epoch {}".format(self.epoch_i))
-            print("---------------------------------------------")
-            print("epoch running time{} test running time{}".format(
-                time_since(time.time() - epoch_start_time),
-                time_since(time.time() - test_time)))
-            print(
-                "[epoch %2d|%2d] avr loss[%2.8f] | lr[%1.6f] test equ acc[%2.3f] test ans acc[%2.3f]"
-                % (self.epoch_i, self.args.epochs_num, loss_total /
-                   self.batch_nums, self.encoder_scheduler.get_lr()[0],
-                   equation_ac / eval_total, value_ac / eval_total))
-            print("---------------------------------------------")
+                print("test running time {}".format(time_since(time.time() - test_time)))
+                print(
+                    "[epoch %2d|%2d] avr loss[%2.8f] | lr[%1.6f] test equ acc[%2.3f] test ans acc[%2.3f]"
+                    % (self.epoch_i, self.args.epochs_num, loss_total /
+                    self.batch_nums, self.encoder_scheduler.get_lr()[0],
+                    equation_ac / eval_total, value_ac / eval_total))
+                print("---------------------------------------------")
         print("training finished.")
         print("best value acc:{} equation acc:{}".format(
             self.best_value_acc, self.best_equ_acc))
+    
     def generate_nodes(self,encoder_outputs,problem_output,batch_size,padding_hidden,num_pos,target_length,seq_mask,num_mask,\
                         target,nums_stack_batch,unk,num_start,USE_CUDA):
         # Prepare input and output variables
@@ -370,26 +381,23 @@ class Trainer(object):
         # Prepare input and output variables
         node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]
 
-        copy_num_len = [len(_) for _ in num_pos]
-        num_size = max(copy_num_len)
+        num_size = len(num_pos[0])
         all_nums_encoder_outputs = get_all_number_encoder_outputs(
             encoder_outputs, num_pos, batch_size, num_size,
             self.encoder.hidden_size, USE_CUDA)
 
         embeddings_stacks = [[] for _ in range(batch_size)]
         left_childs = [None for _ in range(batch_size)]
-        out=[[] for _ in range(batch_size)]
-        scores=[0.0 for _ in range(batch_size)]
         beams = [
-            TreeBeam(scores, node_stacks, embeddings_stacks, left_childs, [])
+            TreeBeam(0.0, node_stacks, embeddings_stacks, left_childs, [])
         ]
         for t in range(max_length):
             current_beams = []
             while len(beams) > 0:
                 b = beams.pop()
-                # if len(b.node_stack[0]) == 0:
-                #     current_beams.append(b)
-                #     continue
+                if len(b.node_stack[0]) == 0:
+                    current_beams.append(b)
+                    continue
                 # left_childs = torch.stack(b.left_childs)
                 left_childs = b.left_childs
 
@@ -412,78 +420,178 @@ class Trainer(object):
                     current_embeddings_stacks = copy_list(b.embedding_stack)
                     current_out = copy.deepcopy(b.out)
 
-                    ti=ti.squeeze()
-                    is_op=ti<num_start
-                    gen_input=ti*(is_op.float())
-
-                    out_token = ti.tolist()
+                    out_token = int(ti)
                     current_out.append(out_token)
 
-                    generate_input = gen_input.long()
-                    if USE_CUDA:
-                        generate_input = generate_input.cuda()
-                    left_child, right_child, node_label = self.generate(
-                        current_embeddings, generate_input,
-                        current_context)
-                    for idx in range(batch_size):
-                        if current_node_stack[idx]==[]:
-                            #current_beams.append(b)
-                            current_embeddings_stacks[idx]=b.embedding_stack[idx]
-                            current_left_childs.append(b.left_childs[idx])
-                            #current_node_stack[idx]=b
-                            continue
-                        node = current_node_stack[idx].pop()
+                    node = current_node_stack[0].pop()
 
-                        if out_token[idx] < num_start:
+                    if out_token < num_start:
+                        generate_input = torch.LongTensor([out_token
+                                                           ]).to(self.device)
+                        if USE_CUDA:
+                            generate_input = generate_input.cuda()
+                        left_child, right_child, node_label = self.generate(
+                            current_embeddings, generate_input,
+                            current_context)
 
-                            current_node_stack[idx].append(TreeNode(right_child[idx].unsqueeze(0)))
-                            current_node_stack[idx].append(
-                                TreeNode(left_child[idx].unsqueeze(0), left_flag=True))
+                        current_node_stack[0].append(TreeNode(right_child))
+                        current_node_stack[0].append(
+                            TreeNode(left_child, left_flag=True))
 
-                            current_embeddings_stacks[idx].append(
-                                TreeEmbedding(node_label[idx].unsqueeze(0), False))
-                        else:
-                            current_num = current_nums_embeddings[
-                                idx, out_token[idx] - num_start].unsqueeze(0)
+                        current_embeddings_stacks[0].append(
+                            TreeEmbedding(node_label[0].unsqueeze(0), False))
+                    else:
+                        current_num = current_nums_embeddings[
+                            0, out_token - num_start].unsqueeze(0)
 
-                            while len(
-                                    current_embeddings_stacks[idx]
-                            ) > 0 and current_embeddings_stacks[idx][-1].terminal:
-                                sub_stree = current_embeddings_stacks[idx].pop()
-                                op = current_embeddings_stacks[idx].pop()
-                                current_num = self.merge(op.embedding,
-                                                        sub_stree.embedding,
-                                                        current_num)
-                            current_embeddings_stacks[idx].append(
-                                TreeEmbedding(current_num, True))
-                        if len(current_embeddings_stacks[idx]
-                            ) > 0 and current_embeddings_stacks[idx][-1].terminal:
-                            current_left_childs.append(
-                                current_embeddings_stacks[idx][-1].embedding)
-                        else:
-                            current_left_childs.append(None)
-                    x1=torch.tensor(b.score)
-                    x2=tv.squeeze()
+                        while len(
+                                current_embeddings_stacks[0]
+                        ) > 0 and current_embeddings_stacks[0][-1].terminal:
+                            sub_stree = current_embeddings_stacks[0].pop()
+                            op = current_embeddings_stacks[0].pop()
+                            current_num = self.merge(op.embedding,
+                                                     sub_stree.embedding,
+                                                     current_num)
+                        current_embeddings_stacks[0].append(
+                            TreeEmbedding(current_num, True))
+                    if len(current_embeddings_stacks[0]
+                           ) > 0 and current_embeddings_stacks[0][-1].terminal:
+                        current_left_childs.append(
+                            current_embeddings_stacks[0][-1].embedding)
+                    else:
+                        current_left_childs.append(None)
                     current_beams.append(
-                        TreeBeam(torch.tensor(b.score).to(self.device) + tv.squeeze(), current_node_stack,
-                                current_embeddings_stacks,
-                                current_left_childs, current_out))
-            #beams = sorted(current_beams, key=lambda x: x.score, reverse=True)
-            beams=beam_sort(current_beams)
+                        TreeBeam(b.score + float(tv), current_node_stack,
+                                 current_embeddings_stacks,
+                                 current_left_childs, current_out))
+            beams = sorted(current_beams, key=lambda x: x.score, reverse=True)
             beams = beams[:beam_size]
             flag = True
             for b in beams:
-                for idx in range(batch_size):
-                    if len(b.node_stack[idx]) != 0:
-                        flag = False
-                        break
-                if flag==False:
-                    break
+                if len(b.node_stack[0]) != 0:
+                    flag = False
             if flag:
                 break
-        all_out_node=beams[0].out
-        all_node_outputs=torch.tensor(all_out_node).to(self.device).long().transpose(0,1)
-        return all_node_outputs
+        return beams[0].out
+    # def generate_nodes_2(self,encoder_outputs,problem_output,batch_size,padding_hidden,seq_mask,num_mask,num_pos,\
+    #                     num_start,USE_CUDA,beam_size=5,max_length=MAX_OUTPUT_LENGTH):
+    #     # Prepare input and output variables
+    #     node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]
+
+    #     copy_num_len = [len(_) for _ in num_pos]
+    #     num_size = max(copy_num_len)
+    #     all_nums_encoder_outputs = get_all_number_encoder_outputs(
+    #         encoder_outputs, num_pos, batch_size, num_size,
+    #         self.encoder.hidden_size, USE_CUDA)
+
+    #     embeddings_stacks = [[] for _ in range(batch_size)]
+    #     left_childs = [None for _ in range(batch_size)]
+    #     out=[[] for _ in range(batch_size)]
+    #     scores=[0.0 for _ in range(batch_size)]
+    #     beams = [
+    #         TreeBeam(scores, node_stacks, embeddings_stacks, left_childs, [])
+    #     ]
+    #     for t in range(max_length):
+    #         current_beams = []
+    #         while len(beams) > 0:
+    #             b = beams.pop()
+    #             # if len(b.node_stack[0]) == 0:
+    #             #     current_beams.append(b)
+    #             #     continue
+    #             # left_childs = torch.stack(b.left_childs)
+    #             left_childs = b.left_childs
+
+    #             num_score, op, current_embeddings, current_context, current_nums_embeddings = self.predict(
+    #                 b.node_stack, left_childs, encoder_outputs,
+    #                 all_nums_encoder_outputs, padding_hidden, seq_mask,
+    #                 num_mask)
+
+    #             out_score = nn.functional.log_softmax(torch.cat(
+    #                 (op, num_score), dim=1),
+    #                                                   dim=1)
+
+    #             # out_score = p_leaf * out_score
+
+    #             topv, topi = out_score.topk(beam_size)
+
+    #             for tv, ti in zip(topv.split(1, dim=1), topi.split(1, dim=1)):
+    #                 current_node_stack = copy_list(b.node_stack)
+    #                 current_left_childs = []
+    #                 current_embeddings_stacks = copy_list(b.embedding_stack)
+    #                 current_out = copy.deepcopy(b.out)
+
+    #                 ti=ti.squeeze()
+    #                 is_op=ti<num_start
+    #                 gen_input=ti*(is_op.float())
+
+    #                 out_token = ti.tolist()
+    #                 current_out.append(out_token)
+
+    #                 generate_input = gen_input.long()
+    #                 if USE_CUDA:
+    #                     generate_input = generate_input.cuda()
+    #                 left_child, right_child, node_label = self.generate(
+    #                     current_embeddings, generate_input,
+    #                     current_context)
+    #                 for idx in range(batch_size):
+    #                     if current_node_stack[idx]==[]:
+    #                         #current_beams.append(b)
+    #                         current_embeddings_stacks[idx]=b.embedding_stack[idx]
+    #                         current_left_childs.append(b.left_childs[idx])
+    #                         #current_node_stack[idx]=b
+    #                         continue
+    #                     node = current_node_stack[idx].pop()
+
+    #                     if out_token[idx] < num_start:
+
+    #                         current_node_stack[idx].append(TreeNode(right_child[idx].unsqueeze(0)))
+    #                         current_node_stack[idx].append(
+    #                             TreeNode(left_child[idx].unsqueeze(0), left_flag=True))
+
+    #                         current_embeddings_stacks[idx].append(
+    #                             TreeEmbedding(node_label[idx].unsqueeze(0), False))
+    #                     else:
+    #                         current_num = current_nums_embeddings[
+    #                             idx, out_token[idx] - num_start].unsqueeze(0)
+
+    #                         while len(
+    #                                 current_embeddings_stacks[idx]
+    #                         ) > 0 and current_embeddings_stacks[idx][-1].terminal:
+    #                             sub_stree = current_embeddings_stacks[idx].pop()
+    #                             op = current_embeddings_stacks[idx].pop()
+    #                             current_num = self.merge(op.embedding,
+    #                                                     sub_stree.embedding,
+    #                                                     current_num)
+    #                         current_embeddings_stacks[idx].append(
+    #                             TreeEmbedding(current_num, True))
+    #                     if len(current_embeddings_stacks[idx]
+    #                         ) > 0 and current_embeddings_stacks[idx][-1].terminal:
+    #                         current_left_childs.append(
+    #                             current_embeddings_stacks[idx][-1].embedding)
+    #                     else:
+    #                         current_left_childs.append(None)
+    #                 x1=torch.tensor(b.score)
+    #                 x2=tv.squeeze()
+    #                 current_beams.append(
+    #                     TreeBeam(torch.tensor(b.score).to(self.device) + tv.squeeze(), current_node_stack,
+    #                             current_embeddings_stacks,
+    #                             current_left_childs, current_out))
+    #         #beams = sorted(current_beams, key=lambda x: x.score, reverse=True)
+    #         beams=beam_sort(current_beams)
+    #         beams = beams[:beam_size]
+    #         flag = True
+    #         for b in beams:
+    #             for idx in range(batch_size):
+    #                 if len(b.node_stack[idx]) != 0:
+    #                     flag = False
+    #                     break
+    #             if flag==False:
+    #                 break
+    #         if flag:
+    #             break
+    #     all_out_node=beams[0].out
+    #     all_node_outputs=torch.tensor(all_out_node).to(self.device).long().transpose(0,1)
+    #     return all_node_outputs
 
 
 if __name__ == "__main__":

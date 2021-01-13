@@ -19,21 +19,21 @@ parser.add_argument("--seed", type=int, default=0, help="Random seed.")
 # Optimizer options.
 parser.add_argument("--learning_rate",
                     type=float,
-                    default=2e-5,
+                    default=1e-3,
                     help="Learning rate.")
 parser.add_argument("--warmup", type=float, default=0.1, help="Warm up value.")
 # Model options.
 parser.add_argument("--embedding_size",
                     type=int,
-                    default=384,
+                    default=512,
                     help="embedding size.")
 parser.add_argument("--feedforward_size",
                     type=int,
-                    default=1536,
+                    default=2048,
                     help="feedforward size.")
 parser.add_argument("--hidden_size",
                     type=int,
-                    default=384,
+                    default=512,
                     help="hidden size.")
 parser.add_argument("--heads_num", type=int, default=8, help="heads num.")
 parser.add_argument("--layers_num", type=int, default=12, help="layers num.")

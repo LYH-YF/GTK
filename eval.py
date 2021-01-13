@@ -74,6 +74,35 @@ def compute_prefix_expression(pre_fix):
         return st.pop()
     return None
 
+# def compute_prefix_tree_result(test_res, test_tar, vocab, num_list, num_stack):
+#     # print(test_res, test_tar)
+#     try:
+#         test_res=test_res[:test_res.index(vocab.word2index["PAD"])]
+#     except:
+#         pass
+#     try:
+#         test_tar=test_tar[:test_tar.index(vocab.word2index["PAD"])]
+#     except:
+#         pass
+#     if len(num_stack) == 0 and test_res == test_tar:
+#         return True, True, test_res, test_tar
+#     test = out_expression_list(test_res, vocab, num_list)
+#     tar = out_expression_list(test_tar, vocab, num_list,
+#                               copy.deepcopy(num_stack))
+#     # print(test, tar)
+#     if test is None:
+#         return False, False, test, tar
+#     if test == tar:
+#         return True, True, test, tar
+#     try:
+#         if abs(
+#                 compute_prefix_expression(test) -
+#                 compute_prefix_expression(tar)) < 1e-4:
+#             return True, False, test, tar
+#         else:
+#             return False, False, test, tar
+#     except:
+#         return False, False, test, tar
 
 def compute_prefix_tree_result(test_res, test_tar, vocab, num_list, num_stack):
     # print(test_res, test_tar)
@@ -97,3 +126,8 @@ def compute_prefix_tree_result(test_res, test_tar, vocab, num_list, num_stack):
             return False, False, test, tar
     except:
         return False, False, test, tar
+
+if __name__ == "__main__":
+    x=["^","5","4","PAD","PAD","PAD"]
+    print(x.index("PAD"))
+    print(x[:x.index("PAD")])
