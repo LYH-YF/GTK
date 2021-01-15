@@ -235,8 +235,8 @@ class Trainer(object):
         loss.backward()
         self.optimizer_step()
         batch_loss = loss.item()
-        print("[epoch %3d]|[step %4d|%4d] loss[%2.8f]" %
-              (self.epoch_i, self.batch_idx, self.batch_nums, batch_loss))
+        # print("[epoch %3d]|[step %4d|%4d] loss[%2.8f]" %
+        #       (self.epoch_i, self.batch_idx, self.batch_nums, batch_loss))
         return batch_loss
 
     def eval_batch(self, batch):
@@ -269,13 +269,14 @@ class Trainer(object):
             self.epoch_i = epo + 1
             epoch_start_time = time.time()
             loss_total = 0.
-            # self.eval2train()
-            # for batch_idx, batch in enumerate(
-            #         self.data_set.load_data(self.args.batch_size, "train")):
-            #     self.batch_idx = batch_idx + 1
-            #     batch_loss = self.train_batch(batch)
-            #     loss_total += batch_loss
-            # print("epoch train time {}".format(time_since(time.time() -epoch_start_time)))
+            self.eval2train()
+            for batch_idx, batch in enumerate(
+                    self.data_set.load_data(self.args.batch_size, "train")):
+                self.batch_idx = batch_idx + 1
+                batch_loss = self.train_batch(batch)
+                loss_total += batch_loss
+            print("avr loss [%2.8f]"%(loss_total /self.batch_nums))
+            print("epoch train time {}".format(time_since(time.time() -epoch_start_time)))
             value_ac = 0
             equation_ac = 0
             eval_total = 0
