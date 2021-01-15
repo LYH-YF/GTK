@@ -82,7 +82,7 @@ class Trainer(object):
         self.embedding_scheduler = torch.optim.lr_scheduler.StepLR(
             self.embedding_optimizer, step_size=20, gamma=0.5)
         self.encoder_scheduler = torch.optim.lr_scheduler.StepLR(
-            self.encoder_optimizer, step_size=100, gamma=0.5)
+            self.encoder_optimizer, step_size=30, gamma=0.5)
         self.predict_scheduler = torch.optim.lr_scheduler.StepLR(
             self.predict_optimizer, step_size=20, gamma=0.5)
         self.generate_scheduler = torch.optim.lr_scheduler.StepLR(
@@ -247,8 +247,8 @@ class Trainer(object):
         test_out=self.run_train(batch["question"],batch["ques mask"],batch["num pos"],batch["num mask"],\
                             unk,num_start,batch["position"],batch["visible matrix"],CUDA_USE)
         val_ac, equ_ac, _, _ = compute_prefix_tree_result(
-                test_out, batch["equation"].tolist(), self.data_set.vocab,
-                batch["num list"], batch["num stack"])
+                test_out, batch["equation"].tolist()[0], self.data_set.vocab,
+                batch["num list"][0], batch["num stack"][0])
         return val_ac,equ_ac
         # batch_val_acc=[]
         # batch_equ_acc=[]
@@ -269,17 +269,18 @@ class Trainer(object):
             self.epoch_i = epo + 1
             epoch_start_time = time.time()
             loss_total = 0.
-            self.eval2train()
-            for batch_idx, batch in enumerate(
-                    self.data_set.load_data(self.args.batch_size, "train")):
-                self.batch_idx = batch_idx + 1
-                batch_loss = self.train_batch(batch)
-                loss_total += batch_loss
-            print("epoch train time {}".format(time_since(time.time() -epoch_start_time)))
+            # self.eval2train()
+            # for batch_idx, batch in enumerate(
+            #         self.data_set.load_data(self.args.batch_size, "train")):
+            #     self.batch_idx = batch_idx + 1
+            #     batch_loss = self.train_batch(batch)
+            #     loss_total += batch_loss
+            # print("epoch train time {}".format(time_since(time.time() -epoch_start_time)))
             value_ac = 0
             equation_ac = 0
             eval_total = 0
-            if self.epoch_i in [1,10,20,30,38,46,52,58,62,66,68,70] or self.epoch_i>70:
+            #if self.epoch_i in [1,10,20,30,38,46,52,58,62,66,68,70] or self.epoch_i>70:
+            if self.epoch_i>=20 or self.epoch_i==1:
                 self.train2eval()
                 test_time = time.time()
                 print("eval model...")
