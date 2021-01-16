@@ -36,7 +36,7 @@ parser.add_argument("--hidden_size",
                     default=512,
                     help="hidden size.")
 parser.add_argument("--heads_num", type=int, default=8, help="heads num.")
-parser.add_argument("--layers_num", type=int, default=12, help="layers num.")
+parser.add_argument("--layers_num", type=int, default=2, help="layers num.")
 # parser.add_argument("--",type=,default=,
 #                     help=)
 parser.add_argument("--batch_size", type=int, default=64, help="Batch size.")

@@ -65,7 +65,7 @@ class Trainer(object):
             weight_decay=args.weight_decay)
         self.encoder_optimizer = torch.optim.Adam(
             self.encoder.parameters(),
-            lr=2e-5,
+            lr=args.learning_rate,
             weight_decay=args.weight_decay)
         self.predict_optimizer = torch.optim.Adam(
             self.predict.parameters(),
@@ -82,7 +82,7 @@ class Trainer(object):
         self.embedding_scheduler = torch.optim.lr_scheduler.StepLR(
             self.embedding_optimizer, step_size=20, gamma=0.5)
         self.encoder_scheduler = torch.optim.lr_scheduler.StepLR(
-            self.encoder_optimizer, step_size=30, gamma=0.5)
+            self.encoder_optimizer, step_size=20, gamma=0.5)
         self.predict_scheduler = torch.optim.lr_scheduler.StepLR(
             self.predict_optimizer, step_size=20, gamma=0.5)
         self.generate_scheduler = torch.optim.lr_scheduler.StepLR(
@@ -275,13 +275,13 @@ class Trainer(object):
                 self.batch_idx = batch_idx + 1
                 batch_loss = self.train_batch(batch)
                 loss_total += batch_loss
-            print("avr loss [%2.8f]"%(loss_total /self.batch_nums))
+            print("epoch [%2d]avr loss [%2.8f]"%(self.epoch_i,loss_total /self.batch_nums))
             print("epoch train time {}".format(time_since(time.time() -epoch_start_time)))
             value_ac = 0
             equation_ac = 0
             eval_total = 0
             #if self.epoch_i in [1,10,20,30,38,46,52,58,62,66,68,70] or self.epoch_i>70:
-            if self.epoch_i>=20 or self.epoch_i==1:
+            if self.epoch_i>=1:
                 self.train2eval()
                 test_time = time.time()
                 print("eval model...")
