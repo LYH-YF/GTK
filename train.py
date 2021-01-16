@@ -198,7 +198,7 @@ class Trainer(object):
         encoder_outputs = self.encoder(
             emb, mask, vm)  #[batch_size x seq_length x hidden_size]
         encoder_outputs = encoder_outputs.transpose(0, 1)
-        problem_output = encoder_outputs[-1, :, :]
+        problem_output = encoder_outputs[0, :, :]
 
         batch_size = problem_output.size(0)
         padding_hidden = torch.FloatTensor(
