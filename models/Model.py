@@ -288,6 +288,34 @@ class KBert_Encoder(nn.Module):
         return hidden
 
 
+class EncoderSeq(nn.Module):
+    def __init__(self, args,input_size):
+        super(EncoderSeq, self).__init__()
+
+        self.input_size = input_size
+        self.embedding_size = args.embedding_size
+        self.hidden_size = args.hidden_size
+        self.n_layers = args.layers_num
+        self.dropout = args.dropout
+
+        self.embedding = nn.Embedding(input_size, args.embedding_size, padding_idx=0)
+        self.em_dropout = nn.Dropout(args.dropout)
+        self.gru_pade = nn.GRU(args.embedding_size, args.hidden_size, args.layers_num, dropout=args.dropout, bidirectional=True)
+
+    def forward(self, input_seqs, input_lengths, hidden=None):
+        # Note: we run this all at once (over multiple batches of multiple sequences)
+        embedded = self.embedding(input_seqs)  # S x B x E
+        embedded = self.em_dropout(embedded)
+        packed = torch.nn.utils.rnn.pack_padded_sequence(embedded, input_lengths)
+        pade_hidden = hidden
+        pade_outputs, pade_hidden = self.gru_pade(packed, pade_hidden)
+        pade_outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(pade_outputs)
+
+        problem_output = pade_outputs[-1, :, :self.hidden_size] + pade_outputs[0, :, self.hidden_size:]
+        pade_outputs = pade_outputs[:, :, :self.hidden_size] + pade_outputs[:, :, self.hidden_size:]  # S x B x H
+        return pade_outputs, problem_output
+
+
 class Prediction(nn.Module):
     # a seq2tree decoder with Problem aware dynamic encoding
 

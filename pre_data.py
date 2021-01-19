@@ -5,6 +5,35 @@ import torch
 from tools import load_raw_data
 from KG import KnowledgeGraph
 from config import ARGS
+import jieba
+def split_number(text_list):
+    pattern = re.compile("\d*\(\d+/\d+\)\d*|\d+\.\d+%?|\d+%?")
+    new_text = []
+    for s in text_list:
+        pos = re.search(pattern, s)
+        if pos and pos.start() == 0:
+            num = s[pos.start():pos.end()]
+            new_text.append(num)
+            if pos.end() < len(s):
+                new_text.append(s[pos.end():])
+        else:
+            new_text.append(s)
+    return new_text
+
+
+def joint_number(text_list):
+    new_list = []
+    i = 0
+    while i < len(text_list):
+        if text_list[i] == '(' and i + 4 < len(text_list) and text_list[
+                i + 4] == ')':
+            sub = ''.join(text_list[i:i + 5])
+            new_list.append(sub)
+            i = i + 5
+        else:
+            new_list.append(text_list[i])
+            i += 1
+    return new_list
 
 
 def transfer_num_2(data):  # transfer num into "NUM"
@@ -181,20 +210,9 @@ def process_math23k():
     #pairs, temp_g, copy_nums=transfer_num(json_datas)
     #json_datas=pair2dict(pairs)
     print("[USE KG]:{}".format(ARGS.use_kg))
+    print("add knowledge to sentence...")
     kg = KnowledgeGraph("data/kg_cleared.json",ARGS.use_kg)
     processed_datas = []
-    # print("add knowledge/transfer nums...")
-    # know_sent_batch, position_batch, visible_matrix_batch,\
-    #     sent_len_batch,num_pos_batch,num_list_batch,\
-    #         ans_batch,id_batch,equation_batch,temp_g,copy_nums,seg_batch=kg.add_knowledge_with_vm(json_datas,max_entities=2)
-    # for know_sent, position, visible_matrix,sent_len,num_pos,num_list,ans,id_,equation in zip(know_sent_batch, position_batch, visible_matrix_batch,sent_len_batch,num_pos_batch,num_list_batch,ans_batch,id_batch,equation_batch):
-    #     data={"question":know_sent,"position":position,"visible matrix":visible_matrix,
-    #             "sent len":sent_len,"num pos":num_pos,"num list":num_list,
-    #             "ans":ans,"id":id_,"equation":equation}
-    #     if len(position)!=128:
-    #         print(1)
-    #     processed_datas.append(data)
-    #                     "equation":data["equation"],"id":data["id"],"sent len":sent_len[0],"ans":data["ans"]}
     for i, data in enumerate(json_datas):
         sent_know, position, vm, sent_len, _ = kg.add_knowledge_with_vm(
             [data], max_entities=2)
@@ -208,11 +226,34 @@ def process_math23k():
             "ans": data["ans"]
         }
         processed_datas.append(processed_data)
-    print("add knowledge to sentence...")
     processed_datas, temp_g, copy_nums = transfer_num_2(processed_datas)
     processed_datas = prefix(processed_datas)
     return processed_datas, kg, temp_g, copy_nums
 
+def process_math23k_for_rnn():
+    json_datas = load_raw_data("data/Math_23K.json")
+    #json_datas = json_datas[:1000]
 
+    #pairs, temp_g, copy_nums=transfer_num(json_datas)
+    #json_datas=pair2dict(pairs)
+    processed_datas = []
+    for i, data in enumerate(json_datas):
+        split_sent2 = [word for word in jieba.cut(data["original_text"])]
+        split_sent = joint_number(split_sent2)
+        split_sent = split_number(split_sent)
+        sent_len=len(split_sent)
+        processed_data = {
+            "question": split_sent,
+            "position": [],
+            "visible matrix": [],
+            "equation": data["equation"],
+            "id": data["id"],
+            "sent len": sent_len,
+            "ans": data["ans"]
+        }
+        processed_datas.append(processed_data)
+    processed_datas, temp_g, copy_nums = transfer_num_2(processed_datas)
+    processed_datas = prefix(processed_datas)
+    return processed_datas, temp_g, copy_nums
 if __name__ == "__main__":
     pass

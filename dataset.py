@@ -1,7 +1,7 @@
 import random
 import re
 import torch
-
+import config
 
 def get_num_mask(num_size_batch, generate_nums):
     num_mask = []
@@ -117,7 +117,10 @@ class DataSet(object):
             else:
                 batch_data = datas[start_idx:num_total]
             if batch_data != []:
-                batch_data = self.batch2tensor(batch_data)
+                if config.ARGS.encoder=="rnn":
+                    batch_data=self.batch2tensor_for_rnn(batch_data)
+                else:
+                    batch_data = self.batch2tensor(batch_data)
                 yield batch_data
 
     def batch2tensor(self, batch_data):
@@ -192,6 +195,7 @@ class DataSet(object):
         position_batch = torch.tensor(position_batch).to(self.device)
         ques_mask_batch = torch.tensor(ques_mask_batch).to(self.device)
         num_mask_batch = torch.tensor(num_mask_batch).to(self.device)
+        ques_len_batch=torch.tensor(ques_len_batch).to(self.device).long()
         return {
             "question": ques_tensor_batch,
             "equation": equ_tensor_batch,
@@ -204,9 +208,95 @@ class DataSet(object):
             "num mask": num_mask_batch,
             "ques mask": ques_mask_batch,
             "num stack": num_stack_batch,
-            "ans": ans_batch
+            "ans": ans_batch,
+            "ques len":ques_len_batch,
         }
-
+    def batch2tensor_for_rnn(self,batch_data):
+        batch_data=sorted(batch_data,key=lambda x:x["sent len"],reverse=True)
+        ques_tensor_batch = []
+        equ_tensor_batch = []
+        vm_batch = []
+        num_list_batch = []
+        num_pos_batch = []
+        position_batch = []
+        id_batch = []
+        #num_mask_batch=[]
+        ques_mask_batch = []
+        equ_len_batch = []
+        ques_len_batch = []
+        num_size_batch = []
+        num_mask_batch = []
+        ques_mask_batch = []
+        ans_batch = []
+        num_stack_batch = []
+        for data in batch_data:
+            ques_tensor = []
+            equ_tensor = []
+            sentence = data["question"]
+            equation = data["equation"]
+            vm_batch.append(data["visible matrix"])
+            num_list_batch.append(data["num list"])
+            num_pos_batch.append(data["num pos"])
+            position_batch.append(data["position"])
+            id_batch.append(data["id"])
+            ques_len_batch.append(data["sent len"])
+            ans_batch.append(data["ans"])
+            num_size_batch = [len(num_pos) for num_pos in num_pos_batch]
+            num_stack_batch.append(
+                self.build_num_stack(equation, data["num list"]))
+            for word in sentence:
+                if word == 0:
+                    idx = self.vocab.word2index["PAD"]
+                else:
+                    try:
+                        idx = self.vocab.word2index[word]
+                    except:
+                        idx = self.vocab.word2index["UNK"]
+                ques_tensor.append(idx)
+            for word in equation:
+                try:
+                    idx = self.vocab.output_dict[word]
+                except:
+                    idx = self.vocab.output_dict["UNK"]
+                equ_tensor.append(idx)
+            equ_len_batch.append(len(equ_tensor))
+            ques_tensor_batch.append(ques_tensor)
+            equ_tensor_batch.append(equ_tensor)
+        max_ques_len=max(ques_len_batch)
+        for i,l in enumerate(ques_len_batch):
+            ques_tensor_batch[i]+=[self.vocab.word2index["PAD"]]*(max_ques_len-l)
+        max_equ_len = max(equ_len_batch)
+        #num_mask_batch=[[1]*l+[0]*(max_equ_len-l) for l in equ_len_batch]
+        for i, l in enumerate(equ_len_batch):
+            equ_tensor_batch[i] += [self.vocab.output_dict["PAD"]
+                                    ] * (max_equ_len - l)
+        #ques_mask_batch=[[1]*l+[0]*(len(ques_tensor_batch[i])-l) for i,l in enumerate(ques_len_batch)]
+        ques_mask_batch = get_seq_mask(ques_len_batch,
+                                       max_ques_len)
+        num_mask_batch = get_num_mask(num_size_batch, self.vocab.generate_num)
+        # to tensor
+        ques_tensor_batch = torch.tensor(ques_tensor_batch).to(self.device)
+        equ_tensor_batch = torch.tensor(equ_tensor_batch).to(self.device)
+        vm_batch = torch.tensor(vm_batch).to(self.device)
+        position_batch = torch.tensor(position_batch).to(self.device)
+        ques_mask_batch = torch.tensor(ques_mask_batch).to(self.device)
+        num_mask_batch = torch.tensor(num_mask_batch).to(self.device)
+        ques_len_batch=torch.tensor(ques_len_batch).to(self.device).long()
+        return {
+            "question": ques_tensor_batch,
+            "equation": equ_tensor_batch,
+            "equ len": equ_len_batch,
+            "num list": num_list_batch,
+            "num pos": num_pos_batch,
+            "visible matrix": vm_batch,
+            "position": position_batch,
+            "id": id_batch,
+            "num mask": num_mask_batch,
+            "ques mask": ques_mask_batch,
+            "num stack": num_stack_batch,
+            "ans": ans_batch,
+            "ques len":ques_len_batch,
+        }
     def build_num_stack(self, equation, num_list):
         num_stack = []
         for word in equation:

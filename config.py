@@ -44,10 +44,7 @@ parser.add_argument("--seq_length",
                     type=int,
                     default=256,
                     help="Sequence length.")
-parser.add_argument("--encoder", choices=["bert", "lstm", "gru", \
-                                                "cnn", "gatedcnn", "attn", \
-                                                "rcnn", "crnn", "gpt", "bilstm"], \
-                                                default="bert", help="Encoder type.")
+parser.add_argument("--encoder", choices=["bert","rnn"], default="rnn", help="Encoder type.")
 parser.add_argument("--bidirectional",
                     action="store_true",
                     help="Specific to recurrent model.")
@@ -63,4 +60,4 @@ parser.add_argument("--weight_decay", type=float, default=1e-5)
 parser.add_argument("--use_kg",type=bool,default=False)
 parser.add_argument("--mean",type=bool,default=False)
 ARGS = parser.parse_args()
-MODEL_PATH="trained_model/gtk_{}.pth".format(ARGS.use_kg)
+MODEL_PATH="trained_model/{}_{}.pth".format(ARGS.encoder,ARGS.use_kg)
