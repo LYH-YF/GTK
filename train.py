@@ -198,9 +198,15 @@ class Trainer(object):
         encoder_outputs = self.encoder(
             emb, mask, vm)  #[batch_size x seq_length x hidden_size]
         encoder_outputs = encoder_outputs.transpose(0, 1)
-        problem_output = encoder_outputs[0, :, :]
+        batch_size=encoder_outputs.size(1)
+        if self.args.mean:
+            seq_len=torch.sum(mask,dim=1)
+            idx=torch.arange(0,batch_size).long().to(self.device)
+            problem_output=[torch.mean(encoder_outputs[:s_l,b,:],dim=0) for s_l,b in zip(seq_len.split(1),idx.split(1))]
+            problem_output=torch.cat(problem_output).to(self.device)
+        else:
+            problem_output = encoder_outputs[0, :, :]
 
-        batch_size = problem_output.size(0)
         padding_hidden = torch.FloatTensor(
             [0.0 for _ in range(self.predict.hidden_size)]).unsqueeze(0)
         if target is not None:

@@ -1,4 +1,8 @@
 # environment
 pip install jieba
 # GTK
-run model "python trainer.py --use_kg True" or "python trainer.py --resume True --use_kg True"
+run model "python train.py"
+            optional:
+                "--use_kg True"    use knowledge graph
+                "--mean True"      mean operation to encoder output
+                "--resume True"    resume training from last
