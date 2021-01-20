@@ -281,7 +281,7 @@ class DataSet(object):
         position_batch = torch.tensor(position_batch).to(self.device)
         ques_mask_batch = torch.tensor(ques_mask_batch).to(self.device)
         num_mask_batch = torch.tensor(num_mask_batch).to(self.device)
-        ques_len_batch=torch.tensor(ques_len_batch).to(self.device).long()
+        ques_len_batch=torch.tensor(ques_len_batch).long()
         return {
             "question": ques_tensor_batch,
             "equation": equ_tensor_batch,
